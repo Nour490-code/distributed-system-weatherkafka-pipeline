@@ -16,7 +16,15 @@ public class CentralStation {
     public static void main(String[] args) {
 
         String bootstrap = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092");
-        String topic = System.getenv().getOrDefault("KAFKA_TOPIC_READINGS", "weather-readings");
+        String readingsTopic = System.getenv().getOrDefault(
+                "KAFKA_TOPIC_READINGS",
+                "weather-readings"
+        );
+        
+        String alertsTopic = System.getenv().getOrDefault(
+                        "KAFKA_TOPIC_ALERTS",
+                        "rain-alerts"
+                );
 
         String dbHost = System.getenv().getOrDefault("DB_HOST", "localhost");
         String dbPort = System.getenv().getOrDefault("DB_PORT", "5432");
@@ -34,7 +42,10 @@ public class CentralStation {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
 
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
-        consumer.subscribe(Collections.singletonList(topic));
+        consumer.subscribe(Arrays.asList(
+        readingsTopic,
+        alertsTopic
+));
 
         String url = "jdbc:postgresql://" + dbHost + ":" + dbPort + "/" + dbName;
 
@@ -57,6 +68,19 @@ public class CentralStation {
                         consumer.poll(Duration.ofMillis(1000));
 
                 for (ConsumerRecord<String, String> record : records) {
+                if (record.topic().equals(alertsTopic)) {
+
+                    JsonNode alertNode = mapper.readTree(record.value());
+
+                    System.out.println(
+                            "RAIN ALERT -> Station: "
+                            + alertNode.get("station_id").asText()
+                            + " | Humidity: "
+                            + alertNode.get("weather").get("humidity").asInt()
+                    );
+
+                    continue;
+                }
 
                     batch.add(record.value());
                     count++;
