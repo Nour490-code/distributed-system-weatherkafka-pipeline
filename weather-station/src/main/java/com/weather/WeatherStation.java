@@ -40,11 +40,26 @@ public class WeatherStation {
 
             sNo++;
 
+            if (rand.nextInt(100) < 10) {
+                System.out.println("DROPPED message for station " + stationId);
+                continue;
+            }
+
             int humidity = rand.nextInt(100);
             int temp = rand.nextInt(40);
             int wind = rand.nextInt(100);
 
-            String battery = rand.nextDouble() < 0.1 ? "LOW" : "OK";
+            int batteryRoll = rand.nextInt(100);
+
+            String battery;
+
+            if (batteryRoll < 30) {
+                battery = "LOW";
+            } else if (batteryRoll < 70) {
+                battery = "MEDIUM";
+            } else {
+                battery = "HIGH";
+            }
 
             long timestamp = Instant.now().toEpochMilli();
 
