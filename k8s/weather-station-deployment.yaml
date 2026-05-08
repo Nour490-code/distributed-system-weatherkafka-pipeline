@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-station
+  namespace: default
+  labels:
+    app: weather-station
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: weather-station
+  template:
+    metadata:
+      labels:
+        app: weather-station
+    spec:
+      # ── Init container: wait for Kafka to be reachable before starting ──────
+      initContainers:
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Kafka at kafka-svc:9092 ..."
+              until nc -z kafka-svc 9092; do
+                echo "  kafka-svc not ready yet, sleeping 3s"
+                sleep 3
+              done
+              echo "Kafka is up — starting weather station"
+      containers:
+        # ── PLACEHOLDER image — swap for your real JAR image when ready ───────
+        # Replace 'alpine:3.19' with something like:
+        #   image: ghcr.io/<your-org>/weather-station:latest
+        - name: weather-station
+          image: nourghazy/weather-station:latest
+          env:
+            # ── STATION_ID from the pod's own name (downward API) ────────────
+            # The Java app should parse the numeric suffix: e.g. "…-5" → 5.
+            # Alternatively inject the ordinal via a StatefulSet if you prefer
+            # strict 1-10 IDs; this Deployment approach gives unique pod names.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: STATION_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name   # Java side: parse suffix, or use StatefulSet
+            # ── Kafka / DB config from ConfigMap ─────────────────────────────
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: KAFKA_TOPIC_READINGS
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: KAFKA_TOPIC_READINGS
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE ON STATION_ID INJECTION
+# ─────────────────────────────────────────────────────────────────────────────
+# Option A (this file): Deployment — each pod gets a random suffix in its name.
+#   Your Java code calls: System.getenv("POD_NAME")
+#   and parses the trailing hash, or you map it to IDs 1-10 inside the app.
+#
+# Option B (cleaner for strict 1-10): Use a StatefulSet instead of Deployment.
+#   Pods are named weather-station-0 … weather-station-9.
+#   Java code: int stationId = Integer.parseInt(
+#                  System.getenv("POD_NAME").replaceAll(".*-(\\d+)$","$1")) + 1;
+#
+# Switch replicas to 5 for the mini-task:
+#   kubectl scale deployment weather-station --replicas=5
+# ─────────────────────────────────────────────────────────────────────────────

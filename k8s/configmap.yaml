@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: weather-config
+  namespace: default
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-svc:9092"
+  DB_HOST: "postgres-svc"
+  DB_PORT: "5432"
+  DB_NAME: "weather_db"
+  KAFKA_TOPIC_READINGS: "weather-readings"
+  KAFKA_TOPIC_ALERTS: "rain-alerts"
